@@ -22,7 +22,7 @@
 
 ### Setup Notes:
 - Required models will be automatically downloaded to `"./src/dataset_name"`
-- Default configurations use 4 A100 GPUs
+- Default configurations use 1 4090GPU for CIFAR10, FFHQ, ImageNet, and 4 A100 GPUs for LSUN Bedroom and Stable Diffusion
 - Adjust batch size according to your hardware capabilities
 
 **Important Note**:  
