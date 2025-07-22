@@ -1,8 +1,14 @@
 ## [ICCV 2025] Distilling Parallel Gradients for Fast ODE Solvers of Diffusion Models<br><sub>Official implementation of the ICCV 2025 paper</sub>
 
-<img src="assets/sd.png" alt="teaser" width="500" style="display: block; margin: auto;">
+<div align="center">
 
+<img src="assets/sd.png" alt="teaser" width="500">
 
+<a href="https://arxiv.org/pdf/2507.14797" style="display: inline-block;">
+    <img src="https://img.shields.io/badge/arXiv%20paper-2507.08396-b31b1b.svg" alt="arXiv" style="height: 20px; vertical-align: middle;">
+</a>&nbsp;
+
+</div>
 
 **Abstract**: Diffusion models (DMs) have achieved state-of-the-art generative performance but suffer from high sampling latency due to their sequential denoising nature. Existing solver-based acceleration methods often face image quality degradation under a low-latency budget. In this paper, we propose the **E**nsemble **P**arallel **D**irection solver (dubbed as $\texttt{EPD-Solver}$), a novel ODE solver that mitigates truncation errors by incorporating multiple parallel gradient evaluations in each ODE step. Importantly, since the additional gradient computations are independent, they can be fully parallelized, preserving low-latency sampling. Our method optimizes a small set of learnable parameters in a distillation fashion, ensuring minimal training overhead. In addition, our method can serve as a plugin to improve existing ODE samplers. Extensive experiments on various image synthesis benchmarks demonstrate the effectiveness of our $\texttt{EPD-Solver}$ in achieving high-quality and low-latency sampling. For example, at the same latency level of 5 NFE, EPD achieves an FID of 4.47 on CIFAR-10, 7.97 on FFHQ, 8.17 on ImageNet, and 8.26 on LSUN Bedroom, surpassing existing learning-based solvers by a significant margin.
 
