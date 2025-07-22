@@ -1,8 +1,10 @@
 ## [ICCV 2025] Distilling Parallel Gradients for Fast ODE Solvers of Diffusion Models<br><sub>Official implementation of the ICCV 2025 paper</sub>
 
 <div align="center">
-
 <img src="assets/sd.png" alt="teaser" width="500">
+</div>
+
+<div align="center">
 
 <a href="https://arxiv.org/pdf/2507.14797" style="display: inline-block;">
     <img src="https://img.shields.io/badge/arXiv%20paper-2507.08396-b31b1b.svg" alt="arXiv" style="height: 20px; vertical-align: middle;">
