@@ -68,7 +68,7 @@ train_model "ms_coco" 32 5
 # Trained predictors are saved in ./exps/ (5-digit experiment numbers)
 # Use either:
 # --predictor_path=/full/path
-# --predictor_path=EXP_NUMBER (e.g., 00000)
+# --predictor_path=EXP_NUMBER (e.g., 00001)
 
 generate_samples() {
     torchrun --standalone --nproc_per_node=4 --master_port=22222 \
