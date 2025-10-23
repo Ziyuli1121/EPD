@@ -304,6 +304,112 @@ def epd_parallel_sampler(
     return x_next, x_list
 
 #----------------------------------------------------------------------------
+def noise_ensemble_sampler(
+    net,
+    latents,
+    class_labels=None,
+    condition=None,
+    unconditional_condition=None,
+    num_steps=None,
+    sigma_min=0.002,
+    sigma_max=80,
+    schedule_type='polynomial',
+    schedule_rho=7,
+    afs=False,
+    denoise_to_zero=False,
+    return_inters=False,
+    predictor=None,
+    step_idx=None,
+    train=False,
+    verbose=False,
+    **kwargs
+):
+    """State-perturbation sampler that averages multiple stochastic gradients."""
+    assert predictor is not None
+
+    def _repeat_condition(val, repeats):
+        if val is None:
+            return None
+        if isinstance(val, torch.Tensor):
+            return val.repeat_interleave(repeats, dim=0)
+        return val
+
+    device = latents.device
+    dtype = latents.dtype
+
+    t_steps = get_schedule(num_steps, sigma_min, sigma_max, device=device, schedule_type=schedule_type, schedule_rho=schedule_rho, net=net)
+    x_next = latents * t_steps[0]
+    inters = [x_next.unsqueeze(0)]
+    x_list = [x_next]
+
+    try:
+        num_points = predictor.module.num_points
+    except AttributeError:
+        num_points = predictor.num_points
+
+    for i, (t_cur, t_next) in enumerate(zip(t_steps[:-1], t_steps[1:])):
+        x_cur = x_next
+        batch_size = latents.shape[0]
+
+        current_step = int(step_idx.item()) if isinstance(step_idx, torch.Tensor) else step_idx
+        current_step = i if current_step is None else current_step
+
+        sigma_vals, weight_vals = predictor(batch_size, current_step)
+        sigma_vals = sigma_vals.to(device=device, dtype=dtype).view(batch_size, num_points, 1, 1, 1)
+        weight_vals = weight_vals.to(device=device, dtype=dtype).view(batch_size, num_points, 1, 1, 1)
+
+        noise = torch.randn([batch_size, num_points, *latents.shape[1:]], device=device, dtype=dtype)
+        x_noisy = x_cur.unsqueeze(1) + sigma_vals * noise
+
+        class_labels_branch = _repeat_condition(class_labels, num_points)
+        condition_branch = _repeat_condition(condition, num_points)
+        unconditional_branch = _repeat_condition(unconditional_condition, num_points)
+
+        x_noisy_flat = x_noisy.view(batch_size * num_points, *latents.shape[1:])
+
+        denoised_flat = get_denoised(
+            net,
+            x_noisy_flat,
+            t_cur,
+            class_labels=class_labels_branch,
+            condition=condition_branch,
+            unconditional_condition=unconditional_branch,
+        )
+
+        if afs and (((not train) and i == 0) or (train and (current_step == 0))):
+            d_flat = x_noisy_flat / ((1 + t_cur**2).sqrt())
+        else:
+            d_flat = (x_noisy_flat - denoised_flat) / t_cur
+
+        d_mid = d_flat.view(batch_size, num_points, *latents.shape[1:])
+        update = (weight_vals * d_mid).sum(dim=1) * (t_next - t_cur)
+        x_next = x_cur + update
+
+        if verbose:
+            print_str = f'step {i}: |'
+            for j in range(num_points):
+                print_str += f'sigma{j}: {sigma_vals[0,j,0,0,0]:.5f} '
+                print_str += f'w{j}: {weight_vals[0,j,0,0,0]:.5f} |'
+            dist.print0(print_str)
+
+        x_list.append(x_next)
+        if return_inters:
+            inters.append(x_next.unsqueeze(0))
+
+    if denoise_to_zero:
+        x_next = get_denoised(net, x_next, t_next, class_labels=class_labels, condition=condition, unconditional_condition=unconditional_condition)
+        if return_inters:
+            inters.append(x_next.unsqueeze(0))
+
+    if return_inters:
+        return torch.cat(inters, dim=0).to(device)
+
+    if train:
+        return x_next, sigma_vals, weight_vals
+
+    return x_next, x_list
+
+#----------------------------------------------------------------------------
 def dpm_sampler(
     net, 
     latents, 

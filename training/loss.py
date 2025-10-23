@@ -17,6 +17,8 @@ def get_solver_fn(solver_name):
         solver_fn = solvers.dpm_sampler
     elif solver_name == 'heun':
         solver_fn = solvers.heun_sampler
+    elif solver_name == 'noise_ensemble':
+        solver_fn = solvers.noise_ensemble_sampler
     elif solver_name == 'epd_parallel':
         solver_fn = solvers.epd_parallel_sampler
     else:
@@ -166,3 +168,73 @@ class EPD_loss:
         )
 
         return teacher_traj[self.tea_slice]
+
+
+@persistence.persistent_class
+class NoiseEnsembleLoss(EPD_loss):
+    def __call__(self, predictor, net, tensor_in, labels=None, step_idx=None, teacher_out=None, condition=None, unconditional_condition=None, dataset=None):
+        step_idx_tensor = torch.tensor([step_idx]).reshape(1,)
+        t_cur = self.t_steps[step_idx_tensor].to(tensor_in.device)
+        t_next = self.t_steps[step_idx_tensor + 1].to(tensor_in.device)
+
+        sigma_vals = None
+        weight_vals = None
+
+        student_out, sigma_vals, weight_vals = self.solver_stu(
+            net,
+            tensor_in / t_cur,
+            class_labels=labels,
+            condition=condition,
+            unconditional_condition=unconditional_condition,
+            num_steps=2,
+            sigma_min=t_next,
+            sigma_max=t_cur,
+            schedule_type=self.schedule_type,
+            schedule_rho=self.schedule_rho,
+            afs=self.afs,
+            denoise_to_zero=False,
+            return_inters=False,
+            predictor=predictor,
+            step_idx=step_idx,
+            train=True,
+            predict_x0=self.predict_x0,
+            lower_order_final=self.lower_order_final,
+            max_order=self.max_order,
+        )
+
+        try:
+            num_points = predictor.num_points
+            alpha = predictor.alpha
+        except AttributeError:
+            num_points = predictor.module.num_points
+            alpha = predictor.module.alpha
+
+        loss = (student_out - teacher_out) ** 2
+
+        if step_idx == self.num_steps - 2:
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            feature_extractor = InceptionFeatureExtractor(device=device)
+
+            if dataset in ['lsun_bedroom_ldm', 'ms_coco']:
+                student_out = net.model.differentiable_decode_first_stage(student_out)
+                teacher_out = net.model.decode_first_stage(teacher_out)
+
+            student_out = (student_out * 127.5 + 128).clip(0, 255)
+            teacher_out = (teacher_out * 127.5 + 128).clip(0, 255)
+            inception_loss = compute_inception_mse_loss(student_out, teacher_out, feature_extractor)
+            loss = loss + alpha * inception_loss - loss
+
+        step_idx_value = int(step_idx) if not isinstance(step_idx, torch.Tensor) else int(step_idx.item())
+        str2print = f"Step: {step_idx_value} | Loss: {torch.mean(torch.norm(loss, p=2, dim=(1, 2, 3))).item():8.4f} "
+
+        if weight_vals is not None:
+            for i in range(num_points):
+                weight_mean = weight_vals[:, i].mean().item()
+                str2print += f"| w{i}: {weight_mean:5.4f} "
+
+        if sigma_vals is not None:
+            for i in range(num_points):
+                sigma_mean = sigma_vals[:, i].mean().item()
+                str2print += f"| sig{i}: {sigma_mean:5.4f} "
+
+        return loss, str2print, student_out

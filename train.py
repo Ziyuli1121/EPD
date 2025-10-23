@@ -21,7 +21,7 @@ warnings.filterwarnings('ignore', 'Grad strides do not match bucket view strides
 
 # Options for solvers
 @click.option('--num_steps',        help='Number of time steps for training', metavar='INT',           type=click.IntRange(min=1), default=4, show_default=True)
-@click.option('--sampler_stu',      help='Student solver', metavar='STR',                              type=click.Choice(['epd','amed', 'dpm', 'dpmpp', 'euler', 'ipndm']), default='epd', show_default=True)
+@click.option('--sampler_stu',      help='Student solver', metavar='STR',                              type=click.Choice(['epd','amed', 'dpm', 'dpmpp', 'euler', 'ipndm', 'noise_ensemble']), default='epd', show_default=True)
 @click.option('--sampler_tea',      help='Teacher solver', metavar='STR',                              type=click.Choice(['heun', 'dpm', 'dpmpp', 'euler', 'ipndm']), default='heun', show_default=True)
 @click.option('--M',                help='Steps to insert between two adjacent steps', metavar='INT',  type=click.IntRange(min=1), default=1, show_default=True)
 @click.option('--guidance_type',    help='Guidance type',                                              type=click.Choice(['cg', 'cfg', 'uncond', None]), default=None, show_default=True)
@@ -31,6 +31,8 @@ warnings.filterwarnings('ignore', 'Grad strides do not match bucket view strides
 @click.option('--afs',              help='Whether to use afs', metavar='BOOL',                         type=bool, default=True, show_default=True)
 @click.option('--scale_dir',        help='Scale the gradient by [1-scale_dir, 1+scale_dir]', metavar='FLOAT',     type=click.FloatRange(min=0), default=0.01, show_default=True)
 @click.option('--scale_time',       help='Scale the gradient by [1-scale_time, 1+scale_time]', metavar='FLOAT',   type=click.FloatRange(min=0), default=0, show_default=True)
+@click.option('--noise_max',        help='Maximum noise magnitude for noise ensemble solver', metavar='FLOAT',    type=click.FloatRange(min=0), default=0.1, show_default=True)
+@click.option('--noise_damping',    help='Damping factor applied to large-noise branches', metavar='FLOAT',       type=click.FloatRange(min=0), default=1.0, show_default=True)
 
 # Additional options for multi-step solvers, 1<=max_order<=4 for iPNDM, 1<=max_order<=3 for DPM-Solver++
 @click.option('--max_order',        help='max order for solvers', metavar='INT',                       type=click.IntRange(min=1), default=3)
@@ -73,14 +75,20 @@ def main(**kwargs):
     c.cos_lr_schedule = opts.coslr
     c.alpha = opts.alpha
     # EPD predictor architecture.
-    c.pred_kwargs.class_name = 'training.networks.EPD_predictor'
+    if opts.sampler_stu == 'noise_ensemble':
+        c.pred_kwargs.class_name = 'training.networks.NoiseEnsemblePredictor'
+        c.loss_kwargs.class_name = 'training.loss.NoiseEnsembleLoss'
+    else:
+        c.pred_kwargs.class_name = 'training.networks.EPD_predictor'
+        c.loss_kwargs.class_name = 'training.loss.EPD_loss'
     c.pred_kwargs.update(num_steps=opts.num_steps, sampler_stu=opts.sampler_stu, sampler_tea=opts.sampler_tea, \
                         M=opts.m, guidance_type=opts.guidance_type, guidance_rate=opts.guidance_rate, \
                         schedule_rho=opts.schedule_rho, schedule_type=opts.schedule_type, afs=opts.afs, \
                         dataset_name=opts.dataset_name, scale_dir=opts.scale_dir, scale_time=opts.scale_time, \
                         num_points=opts.num_points, fcn=opts.fcn, alpha=opts.alpha, \
                         max_order=opts.max_order, predict_x0=opts.predict_x0, lower_order_final=opts.lower_order_final)
-    c.loss_kwargs.class_name = 'training.loss.EPD_loss'
+    if opts.sampler_stu == 'noise_ensemble':
+        c.pred_kwargs.update(noise_max=opts.noise_max, noise_damping=opts.noise_damping)
 
     # Training options.
     c.total_kimg = opts.total_kimg      # Train for total_kimg k trajectories

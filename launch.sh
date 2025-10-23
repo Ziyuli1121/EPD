@@ -90,6 +90,6 @@ generate_samples 0 8 "0-29999"
 
 ## C.1 FID Calculation ##
 python fid.py calc \
-    --images="path/to/generated/images" \
-    --ref="path/to/fid/statistics"
+    --images="/home/perry/ziyul6/EPD/samples/cifar10/noise_ensemble_nfe5_npoints_2" \
+    --ref="/home/perry/ziyul6/EPD/cifar10-32x32.npz"
 

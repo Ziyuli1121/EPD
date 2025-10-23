@@ -219,7 +219,9 @@ def training_loop(
                         else:
                             loss.sum().mul(1 / (batch_gpu_total)).backward(retain_graph=True) 
                     elif pred_kwargs.sampler_stu == 'ipndm':
-                        loss.sum().mul(1 / (batch_gpu_total)).backward(retain_graph=True) 
+                        loss.sum().mul(1 / (batch_gpu_total)).backward(retain_graph=True)
+                    elif pred_kwargs.sampler_stu == 'noise_ensemble':
+                        loss.sum().mul(1 / batch_gpu_total).backward(retain_graph=True)
                     else:
                         raise ValueError("Got wrong settings: check student sampler!")
                     latents[round_idx] = stu_out
