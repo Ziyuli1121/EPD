@@ -164,7 +164,7 @@ If you find this repository useful, please consider citing the following paper:
 ```
 @ inproceedings{zhu2025distilling,
   title={Distilling Parallel Gradients for Fast ODE Solvers of Diffusion Models},
-  author={Zhu, Beier and  Wang, Ruoyu and Zhao, Tong and Zhang, Hanwang and Zhang, Chi},
+  author={Zhu*, Beier and  Wang*, Ruoyu and Zhao, Tong and Zhang, Hanwang and Zhang, Chi},
   booktitle={International Conference on Computer Vision (ICCV)},
   year={2025}
 }
